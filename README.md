@@ -3,6 +3,10 @@
 ## Overview
 This repository contains an R pipeline to analyze age-associated changes in transcriptional noise across cell types using single-cell RNA sequencing (scRNA-seq) data. The analysis employs mixed-effects models to account for individual variability and provides robust statistical and visual outputs.
 
+Dataset used from:
+
+Buckley, M.T., Sun, E.D., George, B.M. et al. Cell-type-specific aging clocks to quantify aging and rejuvenation in neurogenic regions of the brain. Nat Aging 3, 121–137 (2023). [https://doi.org/10.1038/s43587-022-00335-4](https://doi.org/10.1038/s43587-022-00335-4)
+
 ---
 
 ## Objectives
