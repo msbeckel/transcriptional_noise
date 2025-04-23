@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N scRNA_noise
 #PBS -q x86_64
-#PBS -l nodes=1:ppn=16,mem=128gb,walltime=06q:00:00
+#PBS -l nodes=1:ppn=16,mem=128gb,walltime=06:00:00
 #PBS -o /home/mllorens/mbeckel/transcriptional_noise/logs/noise_analysis.log
 #PBS -m abe
 #PBS -M ms.beckel@gmail.com
