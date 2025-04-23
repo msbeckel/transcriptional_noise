@@ -13,9 +13,7 @@ Buckley, M.T., Sun, E.D., George, B.M. et al. Cell-type-specific aging clocks to
 1. **Model Transcriptional Noise**:  
    - Quantify the relationship between transcriptional noise and age for each cell type.
    - Compare log-transformed and rank-based modeling approaches.
-2. **Validate Model Assumptions**:  
-   - Diagnostic checks for normality, homoscedasticity, and residual patterns.
-3. **Generate Insights**:  
+2. **Generate Insights**:  
    - Identify cell types with significant age-dependent noise changes.
    - Provide interactive and publication-ready visualizations.
 
