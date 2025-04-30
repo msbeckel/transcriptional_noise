@@ -13,6 +13,49 @@ import pandas as pd
 from anndata import AnnData
 import matplotlib.pyplot as plt
 
+def add_barcode_metadata(adata: AnnData) -> AnnData:
+    """
+    Splits barcodes in adata.obs_names by '_' and adds parts and sample_id to .obs.
+
+    Expected format: barcode_mouse_conditionRep_lane (e.g., AACGTGAT_M6_APP1_L1)
+
+    - Adds: barcode, mouse, condition, replicate, lane
+    - Adds: sample_id = mouse_condition_replicate_lane
+
+    Args:
+        adata: AnnData object
+
+    Returns:
+        Modified AnnData with new metadata columns in .obs
+    """
+    parts = [bc.split('_') for bc in adata.obs_names]
+
+    # Ensure all barcodes have exactly 4 parts
+    for i, p in enumerate(parts):
+        if len(p) != 4:
+            raise ValueError(f"Barcode at index {i} does not have 4 parts: {p}")
+
+    # Create initial DataFrame
+    df = pd.DataFrame(parts, index=adata.obs_names, columns=["barcode", "age", "condition_full", "lane"])
+
+    # Split condition_full into genotype and replicate using regex
+    df[["genotype", "replicate"]] = df["condition_full"].str.extract(r"([A-Za-z]+)(\d+)", expand=True)
+
+    # Build sample_id from age, genotype, replicate, and lane
+    df["sample_id"] = df[["age", "genotype", "replicate"]].agg('_'.join, axis=1)
+
+    # Drop the original condition_full column
+    #df.drop(columns=["condition_full"], inplace=True)
+
+    # Merge with AnnData.obs
+    adata.obs = pd.concat([adata.obs, df.drop(columns="condition_full")], axis=1)
+
+    # Convert all columns in adata.obs to categorical dtype
+    for col in adata.obs.columns:
+        adata.obs[col] = adata.obs[col].astype('category')
+
+    return adata
+
 def save_qc_plots(adata, results_dir):
     """
     Saves specific QC plots to the results_dir/qc_plots directory.
@@ -50,6 +93,12 @@ def save_qc_plots(adata, results_dir):
         show=False
     )
 
+    # Plot doublet score distribution
+    sc.pl.scrublet_score_distribution(adata,   
+               save="_doublet_score_hist.png", 
+               show=False
+    )
+    
     # Highly variable genes
     sc.pl.highly_variable_genes(
         adata,
@@ -84,7 +133,7 @@ def save_qc_plots(adata, results_dir):
     # UMAP plot
     sc.pl.umap(
         adata,
-        color=["leiden", "log1p_total_counts", "pct_counts_mt", "log1p_n_genes_by_counts"],
+        color=["leiden", "predicted_doublet", "log1p_total_counts", "pct_counts_mt"],#, "log1p_n_genes_by_counts"],
         wspace=0.5,
         ncols=2, 
         save="_umap.png",
@@ -134,6 +183,10 @@ def preprocess_10x_mtx(input_dir: str, output_h5ad: str, results_dir: str, HVG: 
 
     print(f"  Loaded {adata.n_obs} cells × {adata.n_vars} genes")
     
+    # Add metadata from barcodes
+    print("🔍 Adding metadata from barcodes…")
+    adata = add_barcode_metadata(adata)
+
     # Annotate mitochondrial genes
     adata.var_names_make_unique()
     # mitochondrial genes, "MT-" for human, "Mt-" for mouse
@@ -157,6 +210,12 @@ def preprocess_10x_mtx(input_dir: str, output_h5ad: str, results_dir: str, HVG: 
     sc.pp.filter_genes(adata, min_cells=3)
     print(f"  {adata.n_vars} genes remain")
 
+    # Predict cell doublets 
+    print("🔎 Predicting and Filtering Doublets")
+    sc.pp.scrublet(adata)
+    # Filter out predicted doublets
+    #adata = adata[adata.obs['predicted_doublet'] == False].copy()
+
     # Saving count data
     adata.layers["counts"] = adata.X.copy()
 
@@ -172,13 +231,13 @@ def preprocess_10x_mtx(input_dir: str, output_h5ad: str, results_dir: str, HVG: 
     sc.pp.highly_variable_genes(adata, n_top_genes=HVG, subset=False)
     
     #Dimensionality reduction
-    print("🔍 Performing PCA…")
+    print("🔎 Performing PCA…")
     sc.tl.pca(adata)
 
     print("🔍 Performing UMAP…")
     sc.pp.neighbors(adata, n_neighbors=10, n_pcs=20)
     sc.tl.umap(adata)
-    print("🔍 Performing tSNE…" )
+    print("🔎 Performing tSNE…" )
     sc.tl.tsne(adata, n_pcs=20)
     print("🔍 Performing Leiden clustering…" )
     sc.tl.leiden(adata, resolution=0.5, flavor="igraph", n_iterations=2)
