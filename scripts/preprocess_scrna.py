@@ -13,7 +13,7 @@ import pandas as pd
 from anndata import AnnData
 import matplotlib.pyplot as plt
 
-def add_barcode_metadata(adata: AnnData) -> AnnData:
+def add_barcode_metadata(input_dir: str):
     """
     Splits barcodes in adata.obs_names by '_' and adds parts and sample_id to .obs.
 
@@ -27,7 +27,52 @@ def add_barcode_metadata(adata: AnnData) -> AnnData:
 
     Returns:
         Modified AnnData with new metadata columns in .obs
+
+    Preprocesses 10x MEX files. Attempts standard load, falls back to matrix search.
+    Calculates mitochondrial QC, filters, normalizes, logs, saves AnnData and plots.
     """
+    folder_name = os.path.basename(os.path.normpath(input_dir))
+    prefix = f"{folder_name}_"
+
+    print(f"Detected prefix '{prefix}' from folder '{folder_name}'")
+    print(f"Reading 10× data with prefix '{prefix}' from {input_dir}…")
+
+    try:
+        adata = sc.read_10x_mtx(
+            input_dir,
+            prefix=prefix,
+            cache=False
+        )
+        print("✅ Successfully read using sc.read_10x_mtx.")
+
+    except Exception as e:
+        print(f"⚠️  sc.read_10x_mtx failed: {e}")
+        print("🔍 Searching for a file with 'matrix' in its name…")
+
+        matrix_file = next((f for f in os.listdir(input_dir) if "matrix" in f.lower()), None)
+        if not matrix_file:
+            raise FileNotFoundError("No file with 'matrix' in its name found in input_dir for fallback.")
+
+        mtx_path = os.path.join(input_dir, matrix_file)
+        print(f"📄 Found matrix file: {matrix_file}. Reading with sc.read_csv()")
+        adata = sc.read_csv(mtx_path, delimiter=" ")
+        print("✅ Successfully created AnnData from raw matrix.")
+
+
+    #Check if the matrix is transposed
+    sample_like = adata.var_names.str.match(r"^[ACGTN]{8,}").sum()
+    if sample_like > len(adata.var_names) / 2:
+        print("Matrix appears transposed. Transposing to match expected format…")
+        adata = adata.T
+
+    print(f"  Loaded {adata.n_obs} cells × {adata.n_vars} genes")
+    
+    # Add metadata from barcodes
+    print("🔍 Adding metadata from barcodes…")
+
+    # Split barcodes in adata.obs_names by '_'
+    # Example: AACGTGAT_M6_APP1_L1 -> ['AACGTGAT', 'M6', 'APP1', 'L1']
+    # Extract parts from barcodes
     parts = [bc.split('_') for bc in adata.obs_names]
 
     # Ensure all barcodes have exactly 4 parts
@@ -54,7 +99,7 @@ def add_barcode_metadata(adata: AnnData) -> AnnData:
     for col in adata.obs.columns:
         adata.obs[col] = adata.obs[col].astype('category')
 
-    return adata
+    adata.write(input_dir + "/adata.h5ad")
 
 def save_qc_plots(adata, results_dir):
     """
@@ -133,9 +178,9 @@ def save_qc_plots(adata, results_dir):
     # UMAP plot
     sc.pl.umap(
         adata,
-        color=["leiden", "predicted_doublet", "log1p_total_counts", "pct_counts_mt"],#, "log1p_n_genes_by_counts"],
+        color=["leiden", "predicted_doublet", "sample_id", "lane-º","log1p_total_counts", "pct_counts_mt"],#, "log1p_n_genes_by_counts"],
         wspace=0.5,
-        ncols=2, 
+        ncols=3, 
         save="_umap.png",
         show=False
     )
@@ -147,45 +192,8 @@ def preprocess_10x_mtx(input_dir: str, output_h5ad: str, results_dir: str, HVG: 
     Preprocesses 10x MEX files. Attempts standard load, falls back to matrix search.
     Calculates mitochondrial QC, filters, normalizes, logs, saves AnnData and plots.
     """
-    folder_name = os.path.basename(os.path.normpath(input_dir))
-    prefix = f"{folder_name}_"
-
-    print(f"Detected prefix '{prefix}' from folder '{folder_name}'")
-    print(f"Reading 10× data with prefix '{prefix}' from {input_dir}…")
-
-    try:
-        adata = sc.read_10x_mtx(
-            input_dir,
-            prefix=prefix,
-            cache=False
-        )
-        print("✅ Successfully read using sc.read_10x_mtx.")
-
-    except Exception as e:
-        print(f"⚠️  sc.read_10x_mtx failed: {e}")
-        print("🔍 Searching for a file with 'matrix' in its name…")
-
-        matrix_file = next((f for f in os.listdir(input_dir) if "matrix" in f.lower()), None)
-        if not matrix_file:
-            raise FileNotFoundError("No file with 'matrix' in its name found in input_dir for fallback.")
-
-        mtx_path = os.path.join(input_dir, matrix_file)
-        print(f"📄 Found matrix file: {matrix_file}. Reading with sc.read_csv()")
-        adata = sc.read_csv(mtx_path, delimiter=" ")
-        print("✅ Successfully created AnnData from raw matrix.")
-
-
-    #Check if the matrix is transposed
-    sample_like = adata.var_names.str.match(r"^[ACGTN]{8,}").sum()
-    if sample_like > len(adata.var_names) / 2:
-        print("Matrix appears transposed. Transposing to match expected format…")
-        adata = adata.T
-
-    print(f"  Loaded {adata.n_obs} cells × {adata.n_vars} genes")
-    
-    # Add metadata from barcodes
-    print("🔍 Adding metadata from barcodes…")
-    adata = add_barcode_metadata(adata)
+    # Load data
+    adata = sc.read_h5ad(input_dir + "/adata.h5ad")
 
     # Annotate mitochondrial genes
     adata.var_names_make_unique()
@@ -270,4 +278,5 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    add_barcode_metadata(args.input_dir)
     preprocess_10x_mtx(args.input_dir, args.output_h5ad, args.results_dir)
