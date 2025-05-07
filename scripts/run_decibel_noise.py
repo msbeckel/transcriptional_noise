@@ -34,6 +34,27 @@ def run_decibel_noise(adata_path: str, results_dir: str, plots_dir: str, batch: 
     adata.obs["cell_type"] = adata.obs[cell_type]
     adata.obs["condition"] = adata.obs[condition]
 
+    # 2.1) Group clusters by marker genes
+    print("Regrouping clusters by marker genes…")
+    cluster_to_cell_type = {
+        "0": "DG",        # Cluster 0 → DG
+        "7": "DG",        # Cluster 7 → DG
+        "4": "CA3",       # Cluster 4 → CA3
+        "2": "inhibitory",# Cluster 2 → inhibitory
+        "1": "CA1",       # Cluster 1 → CA1
+        "3": "CA1",       # Cluster 3 → CA1
+        "5": "CA1",       # Cluster 5 → CA1
+        "6": "CA1"        # Cluster 6 → CA1
+    }
+
+    # Ensure Leiden clusters are strings (if stored as integers)
+    adata.obs['leiden'] = adata.obs['leiden'].astype(str)
+
+    # Map clusters to regions and create a new column
+    adata.obs['cell_type'] = adata.obs['leiden'].map(cluster_to_cell_type)  
+
+    print("Marker genes added to obs.")
+
     # 3) Distance to cell-type mean (three metrics)
     print("Computing distance to cell-type mean…")
     dcb.distance_to_celltype_mean(adata,batch="batch")
@@ -69,6 +90,7 @@ def run_decibel_noise(adata_path: str, results_dir: str, plots_dir: str, batch: 
         how="left",
         on=["cell_type", "condition", "batch"]
     )
+    adata.obs["mean_gcl"] = adata.obs["mean_gcl"].astype(float)
 
     #Plots
     print("📊 Ploting…")
@@ -85,6 +107,16 @@ def run_decibel_noise(adata_path: str, results_dir: str, plots_dir: str, batch: 
         show=False
     )
 
+    # UMAP genes plot
+    sc.pl.umap(
+        adata,
+        color=['cell_type', 'condition', 'genotype', 'scallop_noise', 'mean_gcl', 'Prox1', 'Mpped1', 'Mndal', 'Gad1'],
+        wspace=0.5,
+        ncols=3, 
+        save="_marker_genes.png",
+        show=False
+    )
+
     # Violin plots (all in one)
     sc.pl.violin(
         adata,
@@ -95,6 +127,12 @@ def run_decibel_noise(adata_path: str, results_dir: str, plots_dir: str, batch: 
         save="_violin_noise_metrics.png",
         show=False
     )
+
+    print("Na values in noise metrics:")
+    print(f"Scallop: {adata.obs['scallop_noise'].isna().sum()}")
+    print(f"Mean GCL: {adata.obs['mean_gcl'].isna().sum()}")
+    print(f"Correlation distance: {adata.obs['cor_dist'].isna().sum()}")
+
 
     # 6) Save results
     os.makedirs(results_dir, exist_ok=True)
