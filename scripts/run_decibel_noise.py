@@ -24,7 +24,7 @@ import decibel as dcb
 import scipy.sparse as sp
 
 
-def run_decibel_noise(adata_path: str, results_dir: str, batch: str = 'batch', cell_type: str = 'cell_type', condition: str = 'condition', num_divisions: int = 10):
+def run_decibel_noise(adata_path: str, results_dir: str, plots_dir: str, batch: str = 'batch', cell_type: str = 'cell_type', condition: str = 'condition', num_divisions: int = 10):
     # 1) Load data
     adata = sc.read_h5ad(adata_path, as_sparse="X")  
     print(f"Loaded AnnData: {adata.n_obs} cells × {adata.n_vars} genes")
@@ -36,11 +36,11 @@ def run_decibel_noise(adata_path: str, results_dir: str, batch: str = 'batch', c
 
     # 3) Distance to cell-type mean (three metrics)
     print("Computing distance to cell-type mean…")
-    dcb.distance_to_celltype_mean(adata,batch=batch)
+    dcb.distance_to_celltype_mean(adata,batch="batch")
 
     # 3.1)
     print("Computing distance to cell-type mean with invariant genes…")
-    dcb.distance_to_celltype_mean_invariant(adata,batch=batch)
+    dcb.distance_to_celltype_mean_invariant(adata,batch="batch")
 
     # 4) Scallop pipeline: membership stability → noise = 1 - mean membership
     print("Running Scallop pipeline for stability noise…")
@@ -48,17 +48,53 @@ def run_decibel_noise(adata_path: str, results_dir: str, batch: str = 'batch', c
 
     # 5) Optionally, compute GCL (global coordination level)
     print("Computing global coordination level (GCL)…")
-    gcl_results = dcb.gcl_per_cell_type_and_batch(adata, batch=batch, num_divisions=10)
+    gcl_results = dcb.gcl_per_cell_type_and_batch(adata, batch="batch", num_divisions=10)
 
-    # Store as a structured array (preserves column names and data types)
-    structured_array = gcl_results.to_records(index=False)
-    adata.uns["gcl"] = {
-        "data": structured_array,
-        "columns": list(gcl_results.columns)
-    }
+    # 5.1) Save GCL results to CSV
+    gcl_out_path = os.path.join(results_dir, "gcl_results.csv")
+    gcl_results.to_csv(gcl_out_path)
 
-    # Optionally store the index if needed
-    adata.uns["gcl"]["index"] = gcl_results.index.values
+    # Aggregate results (e.g., mean GCL per cell type and batch)
+    gcl_agg = (
+        gcl_results
+        .groupby(["cell_type", "condition", "batch"])
+        .agg(mean_gcl=("GCL", "mean"))
+        .reset_index()
+    )
+    print(gcl_agg)
+
+    # Merge with adata.obs to map GCL values to cells
+    adata.obs = adata.obs.merge(
+        gcl_agg,
+        how="left",
+        on=["cell_type", "condition", "batch"]
+    )
+
+    #Plots
+    print("📊 Ploting…")
+    tn_plot_dir = os.path.join(plots_dir, "noise_measures")
+    os.makedirs(tn_plot_dir, exist_ok=True)
+    sc.settings.figdir = tn_plot_dir
+    # UMAP plot
+    sc.pl.umap(
+        adata,
+        color=['cell_type', 'condition', 'genotype', 'scallop_noise', 'mean_gcl', 'cor_dist', 'euc_dist', 'cor_dist_invar', 'euc_dist_invar'],
+        wspace=0.5,
+        ncols=3, 
+        save="_transcriptional_noise.png",
+        show=False
+    )
+
+    # Violin plots (all in one)
+    sc.pl.violin(
+        adata,
+        ['scallop_noise', 'mean_gcl', 'cor_dist', 'euc_dist', 'man_dist', 'cor_dist_invar', 'euc_dist_invar', 'man_dist_invar'],
+        groupby='cell_type',
+        jitter=0.4,
+        multi_panel=True,
+        save="_violin_noise_metrics.png",
+        show=False
+    )
 
     # 6) Save results
     os.makedirs(results_dir, exist_ok=True)
@@ -72,13 +108,14 @@ if __name__ == "__main__":
     )
     parser.add_argument("--adata", required=True, help="Input preprocessed .h5ad file")
     parser.add_argument("--results_dir", default="decibel_results", help="Directory for output .h5ad")
+    parser.add_argument("--plots_dir", default="noise_plots", help="Directory for output plots")
     parser.add_argument("--batch", default="batch", help="obs key for batch/donor")
     parser.add_argument("--cell_type", default="cell_type", help="obs key for cell type")
     parser.add_argument("--condition", default="condition", help="obs key for condition")
     parser.add_argument("--num_divisions", default=10, help="num divisions for GCL")
     args = parser.parse_args()
 
-    run_decibel_noise(args.adata, args.results_dir, args.batch, args.cell_type, args.condition, args.num_divisions)
+    run_decibel_noise(args.adata, args.results_dir, args.plots_dir, args.batch, args.cell_type, args.condition, args.num_divisions)
     print("Finished running Decibel noise estimation.")
     print("Results saved to:", args.results_dir)
     print("Done.")
