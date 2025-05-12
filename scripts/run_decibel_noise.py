@@ -24,7 +24,7 @@ sys.path.append('/home/mllorens/mbeckel/repos_ext/decibel/module/')
 import decibel as dcb
 import scipy.sparse as sp
 
-project = "GSE141044"
+project = "PRJNA795276"
 
 if project == "GSE141044" :
     def change_celltype_names(adata):
@@ -68,6 +68,9 @@ elif project == "PRJNA795276":
         # add condition variable
         median_age = adata.obs['Age'].median()
         adata.obs['condition'] = np.where(adata.obs['Age'] < median_age, 'young', 'old')
+
+        #add neighbors 
+        sc.pp.neighbors(adata, n_neighbors=10, n_pcs=20)
 
 if project == "GSE141044" :
     def noise_plots(project, adata, plots_dir):
@@ -157,7 +160,8 @@ if project == "GSE141044" :
         # Save the figure
         plt.savefig(os.path.join(tn_plot_dir, "scallop_noise_by_cell_type_age_genotype.png"), bbox_inches='tight')
         plt.show()
-elif args.project == "PRJNA795276":
+
+elif project == "PRJNA795276":
     def noise_plots(project, adata, plots_dir):
         
         plot_dir = project + "_noise_plots"
@@ -167,7 +171,7 @@ elif args.project == "PRJNA795276":
         # UMAP plot
         sc.pl.umap(
             adata,
-            color=['cell_type', 'condition', 'scallop_noise', 'mean_gcl', 'cor_dist', 'euc_dist', 'cor_dist_invar', 'euc_dist_invar'],
+            color=['cell_type', 'condition', 'scallop_noise', 'mean_gcl', 'cor_dist', 'euc_dist'],
             wspace=0.5,
             ncols=3, 
             save="_transcriptional_noise.png",
@@ -186,7 +190,7 @@ elif args.project == "PRJNA795276":
         # Violin plots (all in one)
         sc.pl.violin(
             adata,
-            ['scallop_noise', 'mean_gcl', 'cor_dist', 'euc_dist', 'man_dist', 'cor_dist_invar', 'euc_dist_invar', 'man_dist_invar'],
+            ['scallop_noise', 'mean_gcl', 'cor_dist', 'euc_dist', 'man_dist'],
             groupby='cell_type',
             jitter=0.4,
             multi_panel=True,
@@ -244,8 +248,8 @@ def run_decibel_noise(project: str, adata_path: str, results_dir: str, plots_dir
     adata.obs["condition"] = adata.obs[condition]
 
     # 2.1) Regroup clusters by marker genes
-    #change_celltype_names(adata)
-    #print(f"Regrouped clusters by marker genes: {adata.obs['cell_type'].unique()}")
+    change_celltype_names(adata)
+    print(f"Regrouped clusters by marker genes: {adata.obs['cell_type'].unique()}")
 
 
     # 3) Distance to cell-type mean (three metrics)
@@ -254,7 +258,8 @@ def run_decibel_noise(project: str, adata_path: str, results_dir: str, plots_dir
 
     # 3.1)
     print("Computing distance to cell-type mean with invariant genes…")
-    dcb.distance_to_celltype_mean_invariant(adata,batch="batch")
+    print("Skipping this method…")
+    #dcb.distance_to_celltype_mean_invariant(adata,batch="batch")
 
     # 4) Scallop pipeline: membership stability → noise = 1 - mean membership
     print("Running Scallop pipeline for stability noise…")
