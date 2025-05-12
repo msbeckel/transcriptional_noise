@@ -201,13 +201,13 @@ elif project == "PRJNA795276":
         # Extract the required data from adata.obs
         df = sc.get.obs_df(
             adata,
-            keys=['scallop_noise', 'cell_type', 'age']
+            keys=['scallop_noise', 'cell_type', 'Age']
         )
 
         # Convert 'age' to an ordered categorical variable
-        df['age'] = pd.Categorical(
-            df['age'],
-            categories=['M6', 'M24'],  # Enforce order: M6 first, M24 second
+        df['Age'] = pd.Categorical(
+            df['Age'],
+            categories=['young', 'old'],  # Enforce order: M6 first, M24 second
             ordered=True
         )
 
@@ -220,7 +220,7 @@ elif project == "PRJNA795276":
             data=df,
             x='cell_type',
             y='scallop_noise',
-            hue='age',
+            hue='Age',
             split=True,
             inner='quart',
             linewidth=1,
