@@ -3,10 +3,15 @@ samples:
 
 # Quality control thresholds
 qc:
-  min_genes: 200        # minimum genes detected per cell
-  min_cells: 3       # maximum genes detected per cell
-  max_pct_mt: 5         # maximum mitochondrial gene percentage
+  hvg: 2000        # minimum genes detected per cell
+  min_cells: 3     # maximum genes detected per cell
 
 # Optional batch labels (if batch correction across samples)
 batches:
   GSE141044: sample_id
+cell_types:
+  GSE141044: leiden
+conditions:
+  GSE141044: age
+classes:
+  GSE141044: genotype

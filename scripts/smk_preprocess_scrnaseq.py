@@ -1,7 +1,16 @@
+import numpy as np
 import scanpy as sc
 import scanpy.external as sce
 import matplotlib.pyplot as plt
 import sys, os
+from scipy.stats import median_abs_deviation
+
+def is_outlier(adata, metric: str, nmads: int):
+    M = adata.obs[metric]
+    outlier = (M < np.median(M) - nmads * median_abs_deviation(M)) | (
+        np.median(M) + nmads * median_abs_deviation(M) < M
+    )
+    return outlier
 
 # Arguments
 # argv[1]: input h5ad
@@ -11,14 +20,13 @@ import sys, os
 # argv[5]: umap plot path
 # argv[6]: optional batch label (pass empty string if none)
 (
-    infile, out_h5ad, out_loom, qc_png, umap_png,
-    min_genes, min_cells, max_pct_mt, batch_label
-) = sys.argv[1:10]
+    infile, out_h5ad, out_loom, qc_png, scatter_png, hvg_png, umap_png,
+    min_cells, hvg, batch_label
+) = sys.argv[1:]
 
 # Convert types
-min_genes = int(min_genes)
+hvg = int(hvg)
 min_cells = int(min_cells)
-max_pct_mt = float(max_pct_mt)
 batch_label = batch_label if batch_label else None
 
 # Ensure output directory exists
@@ -42,7 +50,7 @@ adata.var["hb"] = adata.var_names.str.contains("^HB[^(P)]")
 
 print("🧬 Calculating QC metrics including mitochondrial percentage…")
 sc.pp.calculate_qc_metrics(
-    adata, qc_vars=["mt", "ribo", "hb"], inplace=True, log1p=True
+    adata, qc_vars=["mt", "ribo", "hb"], percent_top=[20], inplace=True, log1p=True
 )
 
 # Violin plots for QC
@@ -57,13 +65,38 @@ os.makedirs(os.path.dirname(qc_png), exist_ok=True)
 plt.savefig(qc_png, bbox_inches='tight')
 plt.close()
 
+
 # Filter cells and genes based on config thresholds
-print(f"📉 Filtering cells with < {min_genes} genes…")
-sc.pp.filter_cells(adata, min_genes=min_genes)
-print(f"📉 Filtering genes with < {min_cells} cells…")
-sc.pp.filter_genes(adata, min_cells=min_cells)
-print(f"📉 Filtering cells with < {max_pct_mt} %MT…")
-adata = adata[adata.obs.pct_counts_mt < max_pct_mt, :]
+print(f"📉 Filtering cells by counts…")
+adata.obs["outlier"] = (
+    is_outlier(adata, "log1p_total_counts", 5)
+    | is_outlier(adata, "log1p_n_genes_by_counts", 5)
+    | is_outlier(adata, "pct_counts_in_top_20_genes", 5)
+)
+
+# Filter cells and genes based on config thresholds
+print(f"📉 Filtering cells by MT counts…")
+adata.obs["mt_outlier"] = is_outlier(adata, "pct_counts_mt", 3) | (
+    adata.obs["pct_counts_mt"] > 8
+)
+
+print(f"Total number of cells: {adata.n_obs}")
+adata = adata[(~adata.obs.outlier) & (~adata.obs.mt_outlier)].copy()
+
+print(f"Number of cells after filtering of low quality cells: {adata.n_obs}")
+
+# Violin plots for QC
+sc.pl.scatter(
+    adata,
+    "total_counts", 
+    "n_genes_by_counts", 
+    color="pct_counts_mt",
+    show=False
+)
+# manually save to provided path
+os.makedirs(os.path.dirname(scatter_png), exist_ok=True)
+plt.savefig(scatter_png, bbox_inches='tight')
+plt.close()
 
 # Doublet scoring using built-in Scanpy
 print("🔎 Predicting and Filtering Doublets")
@@ -76,16 +109,26 @@ sc.pp.scrublet(
 adata.layers["counts"] = adata.X.copy()
 
 # Normalization and log transform
-sc.pp.normalize_total(adata, target_sum=1e4)
+sc.pp.normalize_total(adata, target_sum=1e6)
 sc.pp.log1p(adata)
 
 # Identify highly variable genes
+print("🔎 Calculating HVG...")
 sc.pp.highly_variable_genes(
     adata,
-    min_mean=0.0125,
-    max_mean=3,
-    min_disp=0.5
+    n_top_genes=hvg
 )
+
+# Violin plots for QC
+sc.pl.highly_variable_genes(
+    adata,
+    show=False
+)
+# manually save to provided path
+os.makedirs(os.path.dirname(hvg_png), exist_ok=True)
+plt.savefig(hvg_png, bbox_inches='tight')
+plt.close()
+
 ad = adata[:, adata.var.highly_variable]
 adata = ad
 
