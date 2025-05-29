@@ -32,8 +32,6 @@ rule preprocess:
         min_cells = qc_settings['min_cells'],
         hvg = qc_settings['hvg'],
         batch = lambda wc: batches.get(wc.sample, ""),
-    conda:
-        "envs/scanpy.yaml"
     shell:
         (
             "python scripts/smk_preprocess_scrnaseq.py "
@@ -54,8 +52,6 @@ rule decibel:
         cell_type = lambda wc: cell_types.get(wc.sample, ""),
         condition = lambda wc: conditions.get(wc.sample, ""),
         classes   = lambda wc: classes.get(wc.sample, ""),
-    conda:
-        "envs/scanpy.yaml"
     shell:
         (
             "python scripts/smk_decibel_noise.py "
