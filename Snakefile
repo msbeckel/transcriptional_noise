@@ -1,6 +1,7 @@
 configfile: "config.yaml"
 samples = config['samples']
 qc_settings = config['qc']
+celltypist_models = config.get('celltypist_models', {})
 batches = config.get('batches', {})
 cell_types = config.get('cell_types', {})
 conditions = config.get('conditions', {})
@@ -39,9 +40,25 @@ rule preprocess:
             "{params.min_cells} {params.hvg} {params.batch}"
         )
 
-rule decibel:
+rule celltypist:
     input:
         infile = lambda wc: f"results/{wc.sample}/processed.h5ad"
+    output:
+        h5ad = "results/{sample}/annotated.h5ad",
+        umap_png = "results/{sample}/celltypist_umap.png",
+    params:
+        model = lambda wc: celltypist_models.get(wc.sample, ""),
+    conda:
+         "celltypist"
+    shell:
+        (
+            "python scripts/smk_celltypist.py "
+            "{input.infile} {output.h5ad} {params.model} {output.umap_png}"
+        )
+
+rule decibel:
+    input:
+        infile = lambda wc: f"results/{wc.sample}/annotated.h5ad"
     output:
         h5ad = "results/{sample}/adata_decibel.h5ad",
         umap_png = "results/{sample}/decibel_umap.png",

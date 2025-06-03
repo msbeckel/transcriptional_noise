@@ -22,7 +22,8 @@ classes = classes if classes else None
 os.makedirs(os.path.dirname(out_h5ad), exist_ok=True)
 
 # Load data
-adata = sc.read_h5ad(infile, as_sparse="X")  
+#adata = sc.read_h5ad(infile, as_sparse="X")
+adata = sc.read_h5ad(infile)  
 print(f"Loaded AnnData: {adata.n_obs} cells × {adata.n_vars} genes")
 
 # 2) Preprocess data
@@ -87,6 +88,7 @@ sc.pl.violin(
     ['scallop_noise', 'mean_gcl', 'cor_dist'],
     groupby='cell_type',
     jitter=0.4,
+    rotation=90,
     multi_panel=True,
     show=False
 )

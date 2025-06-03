@@ -109,7 +109,7 @@ sc.pp.scrublet(
 adata.layers["counts"] = adata.X.copy()
 
 # Normalization and log transform
-sc.pp.normalize_total(adata, target_sum=1e6)
+sc.pp.normalize_total(adata, target_sum=1e4)
 sc.pp.log1p(adata)
 
 # Identify highly variable genes
@@ -129,12 +129,12 @@ os.makedirs(os.path.dirname(hvg_png), exist_ok=True)
 plt.savefig(hvg_png, bbox_inches='tight')
 plt.close()
 
-ad = adata[:, adata.var.highly_variable]
-adata = ad
+#ad = adata[:, adata.var.highly_variable]
+#adata = ad
 
 #Dimensionality reduction
 print("🔎 Performing PCA…")
-sc.tl.pca(adata)
+sc.tl.pca(adata, use_highly_variable=True)
 
 # Batch correction via Harmony if annotated
 if 'batch' in adata.obs:
@@ -149,12 +149,14 @@ sc.tl.umap(adata)
 print("🔎 Performing tSNE…" )
 sc.tl.tsne(adata, n_pcs=20)
 print("🔍 Performing Leiden clustering…" )
-sc.tl.leiden(adata, resolution=0.5, flavor="igraph", n_iterations=2)
+sc.tl.leiden(adata, resolution=0.5, flavor="igraph", n_iterations=2, key_added='leiden_05')
+sc.tl.leiden(adata, resolution=1, flavor="igraph", n_iterations=2, key_added='leiden_1')
+sc.tl.leiden(adata, resolution=2, flavor="igraph", n_iterations=2, key_added='leiden_2')
 
 # UMAP plot
 sc.pl.umap(
     adata,
-    color=['leiden', 'doublet_score', 'batch'],
+    color=['leiden_05', 'leiden_1', 'leiden_2', 'batch', 'doublet_score'],
     show=False
 )
 
