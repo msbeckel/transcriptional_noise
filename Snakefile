@@ -2,6 +2,7 @@ configfile: "config.yaml"
 samples = config['samples']
 qc_settings = config['qc']
 celltypist_models = config.get('celltypist_models', {})
+species = config.get('species', {})
 batches = config.get('batches', {})
 cell_types = config.get('cell_types', {})
 conditions = config.get('conditions', {})
@@ -32,12 +33,13 @@ rule preprocess:
     params:
         min_cells = qc_settings['min_cells'],
         hvg = qc_settings['hvg'],
+        sp = lambda wc: species.get(wc.sample, ""),
         batch = lambda wc: batches.get(wc.sample, ""),
     shell:
         (
             "python scripts/smk_preprocess_scrnaseq.py "
             "{input.infile} {output.h5ad} {output.loom} {output.qc_png} {output.scatter_png} {output.hvg_png} {output.umap_png} "
-            "{params.min_cells} {params.hvg} {params.batch}"
+            "{params.min_cells} {params.hvg} {params.batch} {params.sp}"
         )
 
 rule celltypist:

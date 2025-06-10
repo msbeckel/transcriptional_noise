@@ -7,10 +7,14 @@ qc:
   min_cells: 3     # maximum genes detected per cell
 
 # Optional batch labels (if batch correction across samples)
+species:
+  GSE141044: mouse
 batches:
   GSE141044: sample_id
+celltypist_models:
+  GSE141044: Mouse_Dentate_Gyrus.pkl
 cell_types:
-  GSE141044: leiden
+  GSE141044: majority_voting
 conditions:
   GSE141044: age
 classes:
