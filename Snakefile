@@ -22,7 +22,7 @@ rule all:
 
 rule preprocess:
     input:
-        infile = lambda wc: f"data/00_raw/{wc.sample}/adata.h5ad"
+        infile = lambda wc: f"data/00_raw/{wc.sample}/{wc.sample}.h5ad"
     output:
         h5ad = "results/{sample}/processed.h5ad",
         loom = "results/{sample}/processed.loom",

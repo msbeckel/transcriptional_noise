@@ -27,6 +27,7 @@ def is_outlier(adata, metric: str, nmads: int):
 # Convert types
 hvg = int(hvg)
 min_cells = int(min_cells)
+sp = sp.lower()
 batch_label = batch_label if batch_label else None
 
 # Ensure output directory exists
@@ -42,12 +43,14 @@ if batch_label:
 # Annotate mitochondrial genes
 adata.var_names_make_unique()
 # mitochondrial genes, "MT-" for human, "Mt-" for mouse
-if sp == "human":
-    adata.var["mt"] = adata.var_names.str.startswith("MT-")
-elif sp == "mouse":
-    adata.var["mt"] = adata.var_names.str.startswith("Mt-")
-else:
-    raise ValueError(f"Species {sp} not recognized. Use 'human' or 'mouse'.")
+#if sp == "human":
+#    adata.var["mt"] = adata.var_names.str.startswith("MT-")
+#elif sp == "mouse":
+#    adata.var["mt"] = adata.var_names.str.startswith("Mt-")
+#else:
+#    raise ValueError(f"Species {sp} not recognized. Use 'human' or 'mouse'.")
+
+adata.var["mt"] = adata.var_names.str.startswith("Mt-")
 
 # ribosomal genes
 adata.var["ribo"] = adata.var_names.str.startswith(("RPS", "RPL"))
